@@ -12,8 +12,10 @@ from .models import (ProductCategory, Widget, Brand, Variant, VariantValue, Prod
                      CartItem, Cart, Address, CustomUser, Wishlist, WishlistItem)
 from .serializers import (CustomUserSerializer, UserDetailsSerializer, ProductCategorySerializer,
                           WidgetSerializer, BrandSerializer, ProductBasicSerializer, InventorySerializer,
-                          CartItemSerializer, AddressSerializer, WishlistItemSerializer)
+                          CartItemSerializer, AddressSerializer, WishlistItemSerializer, CustomTokenObtainSerializer,
+                          CustomTokenRefreshSerializer)
 from .renderers import BrandJSONRenderer, CustomerProfileRenderer
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView as BaseTokenRefreshView
 
 # Function to generate random number for otp (Twilio)
 def generate_otp(length=6):
@@ -23,8 +25,9 @@ def generate_otp(length=6):
 # Add a new customer(sign-up)
 @swagger_auto_schema(
     method='post',
+    operation_summary='Customer signup',
     security=[],
-    operation_description="Create a new customer",
+    operation_description="Creates a new customer profile with the provided details.",
     request_body=openapi.Schema(
         type='object',
         properties={
@@ -70,6 +73,7 @@ def create_customer(request):
 # Verify the user for sign-up with otp and token
 @swagger_auto_schema(
     method='post',
+    operation_summary='Customer verify api',
     security=[],
     operation_description="Verify OTP and activate user",
     request_body=openapi.Schema(
@@ -103,6 +107,10 @@ def verify_otp(request):
         return Response({'message': 'User activated successfully.'}, status=status.HTTP_200_OK)
 
 # Function to fetch customer profile details
+@swagger_auto_schema(
+    method='get',
+    operation_summary='Get customer profile',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @renderer_classes([CustomerProfileRenderer])
@@ -111,9 +119,53 @@ def customer_profile(request):
     serializer = UserDetailsSerializer(user)
     return Response(serializer.data)
 
+# Function to check is the username is existing or not
+@swagger_auto_schema(
+    method='get',
+    security=[],
+    operation_summary='Username check for data exist or not',
+)
+@api_view(['GET'])
+def check_username(request, username):
+    is_valid = CustomUser.objects.filter(username=username).exists()
+    return Response({'is_valid': is_valid})
+
+# Function to edit customer profile details
+@swagger_auto_schema(
+    method='patch',
+    operation_summary='Edit Customer Profile',
+    operation_description='Updates the details of the logged-in customer profile.',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'first_name': openapi.Schema(type='string', description='First name of the customer'),
+            'last_name': openapi.Schema(type='string', description='Last name of the customer'),
+            'email': openapi.Schema(type='string', format='email',
+                                    description='Email address of the customer'),
+            'country_code': openapi.Schema(type='string',
+                                           description='Country code of the customer\'s phone number'),
+            'phone_number': openapi.Schema(type='string', description='Phone number of the customer'),
+        }
+    ),
+    responses={
+        200: openapi.Response(description='Success', schema=UserDetailsSerializer),
+        400: 'Bad Request',
+        401: 'Unauthorized',
+    }
+)
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_customer_profile(request):
+    user = request.user
+    serializer = UserDetailsSerializer(user, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 # Product
 # Function to fetch product categories
-@swagger_auto_schema(method='get', security=[])
+@swagger_auto_schema(method='get', security=[], operation_summary='Get product categories')
 @api_view(['GET'])
 def product_category_list(request):
     categories = ProductCategory.objects.all()
@@ -121,7 +173,7 @@ def product_category_list(request):
     return Response(serializer.data)
 
 # Function to fetch product widgets
-@swagger_auto_schema(method='get', security=[])
+@swagger_auto_schema(method='get', security=[], operation_summary='Get product widgets')
 @api_view(['GET'])
 def widget_list(request):
     widgets = Widget.objects.all()
@@ -129,7 +181,7 @@ def widget_list(request):
     return Response(serializer.data)
 
 # Function to fetch product brand lists
-@swagger_auto_schema(method='get', security=[])
+@swagger_auto_schema(method='get', security=[], operation_summary='Get product brands')
 @api_view(['GET'])
 @renderer_classes([BrandJSONRenderer])
 def brand_list(request):
@@ -138,7 +190,7 @@ def brand_list(request):
     return Response(serializer.data)
 
 # Function to fetch different product variants
-@swagger_auto_schema(method='get', security=[])
+@swagger_auto_schema(method='get', security=[], operation_summary='Get product variant and its values')
 @api_view(['GET'])
 def variant_list(request):
     variants = Variant.objects.all()
@@ -163,7 +215,7 @@ def variant_list(request):
     return Response(data)
 
 # Function to fetch basic product details by passing product ID
-
+@swagger_auto_schema(method='get', operation_summary='Get product detail')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def product_detail(request, product_id):
@@ -179,6 +231,7 @@ def product_detail(request, product_id):
             return Response({"message": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
 # Function to fetch inventory details of products by passing inventory ID
+@swagger_auto_schema(method='get', operation_summary='Get inventory detail')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def inventory_detail(request, inventory_id):
@@ -196,6 +249,7 @@ def inventory_detail(request, inventory_id):
 
 # Cart
 # Function to fetch cart details of customer
+@swagger_auto_schema(method='get', operation_summary='List cart items api')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def cart_list(request):
@@ -210,7 +264,8 @@ def cart_list(request):
 # Function to add cart item to logged in customer
 @swagger_auto_schema(
     method='post',
-    operation_description="Add item(s) to cart",
+    operation_summary='Add to cart api',
+    operation_description="Add item to cart",
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         required=['product_id', 'quantity'],
@@ -258,6 +313,7 @@ def add_to_cart(request):
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 # Function to delete cart item by passing cart item ID
+@swagger_auto_schema(method='delete', operation_summary='Delete product from cart')
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def remove_from_cart(request, cart_item_id):
@@ -272,6 +328,7 @@ def remove_from_cart(request, cart_item_id):
 # Function to update cart item quantity by passing cart item ID and quantity
 @swagger_auto_schema(
     method='put',
+    operation_summary='Update product quantity',
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         required=['cartId', 'quantity'],
@@ -307,6 +364,7 @@ def update_cart_item_quantity(request):
         return Response({'error': 'Cart item not found'}, status=status.HTTP_404_NOT_FOUND)
 
 # Function to delete entire cart item by passing cart ID of logged in customer if exist
+@swagger_auto_schema(method='delete', operation_summary='Delete all from cart')
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_customer_cart_items(request):
@@ -323,6 +381,7 @@ def delete_customer_cart_items(request):
 
 # Address
 # Function to fetch all address of the logged in customer
+@swagger_auto_schema(method='get', operation_summary='List customer address')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def address_list(request):
@@ -336,6 +395,7 @@ def address_list(request):
 # Function to add address
 @swagger_auto_schema(
     method='post',
+    operation_summary='Add customer address api',
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         required=['first_name', 'last_name', 'country_code', 'phone', 'email', 'pin_code',
@@ -376,6 +436,7 @@ def add_address(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Function to fetch one address by passing the address ID
+@swagger_auto_schema(method='get', operation_summary='Get customer address by ID')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_address_by_id(request, address_id):
@@ -389,6 +450,7 @@ def get_address_by_id(request, address_id):
 # Function to edit the address by passing address ID
 @swagger_auto_schema(
     method='patch',
+    operation_summary='Edit customer address',
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         properties={
@@ -433,6 +495,7 @@ def edit_address(request, address_id):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Function to delete address by passing address ID
+@swagger_auto_schema(method='delete', operation_summary='Delete customer address')
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_address(request, address_id):
@@ -444,6 +507,8 @@ def delete_address(request, address_id):
     address.delete()
     return Response({"message": "Address deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
+# Function to get default address
+@swagger_auto_schema(method='get', operation_summary='Get customer default address')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_default_address(request):
@@ -457,6 +522,7 @@ def get_default_address(request):
 
 # Wishlish
 
+@swagger_auto_schema(method='get', operation_summary='List customer wishlist')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def view_wishlist(request):
@@ -464,6 +530,8 @@ def view_wishlist(request):
     wishlist_items = WishlistItem.objects.filter(wishlist__user=user)
     serializer = WishlistItemSerializer(wishlist_items, many=True)
     return Response(serializer.data)
+
+@swagger_auto_schema(method='post', operation_summary='Add customer wishlist api')
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_to_wishlist(request, inventory_id):
@@ -477,24 +545,17 @@ def add_to_wishlist(request, inventory_id):
             return Response({'message': 'Inventory not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         user = request.user
-
-        # Create or get the user's wishlist
         wishlist, created = Wishlist.objects.get_or_create(user=user)
-
-        # Check if the item is already in the wishlist
         if wishlist.items.filter(inventory=inventory).exists():
             return Response({'message': 'Item already in wishlist.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Add item to wishlist
         wishlist_item = WishlistItem.objects.create(wishlist=wishlist, inventory=inventory)
         wishlist_item_serializer = WishlistItemSerializer(wishlist_item)
-
-        # Update is_wishlisted field of inventory
         inventory.is_wishlisted = True
         inventory.save()
 
         return Response({'message': 'Item added to wishlist successfully.'}, status=status.HTTP_201_CREATED)
 
+@swagger_auto_schema(method='delete', operation_summary='Delete wishlist by ID')
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def remove_from_wishlist(request, wishlist_item_id):
@@ -510,6 +571,7 @@ def remove_from_wishlist(request, wishlist_item_id):
     wishlist_item.delete()
     return Response({'message': 'Item removed from wishlist successfully.'}, status=200)
 
+@swagger_auto_schema(method='delete', operation_summary='Delete all wishlist items')
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def clear_wishlist(request):
@@ -521,6 +583,46 @@ def clear_wishlist(request):
         inventory.save()
         wishlist_item.delete()
     return Response({'message': 'Wishlist cleared successfully.'}, status=200)
+
+# Login customer and fetching Token
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainSerializer
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if 'user' in data:
+            user_data = {
+                'customerId': data['user']['id'],
+                'email': data['user']['email'],
+                'firstName': data['user']['first_name'],
+                'lastName': data['user']['last_name'],
+                'countryCode': data['user']['country_code'],
+                'phone': data['user'].get('phone_number', ''),
+            }
+        else:
+            user_data = {}
+        return Response({
+            'profileData': user_data,
+            'refreshToken': data.get('refresh'),
+            'accessToken': data.get('access'),
+        })
+
+    @swagger_auto_schema(security=[], operation_summary='Customer login api')
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
+class CustomTokenRefreshView(BaseTokenRefreshView):
+    serializer_class = CustomTokenRefreshSerializer
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        return Response(data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(security=[], operation_summary='Refresh token api')
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
 
 # # Function to log in (access token)

@@ -3,15 +3,18 @@ from .views import (create_customer, customer_profile, product_category_list,
                     widget_list, brand_list, variant_list, product_detail, inventory_detail, cart_list,
                     add_to_cart, remove_from_cart, update_cart_item_quantity, delete_customer_cart_items,
                     address_list, add_address, get_address_by_id, edit_address, delete_address, verify_otp,
-                    add_to_wishlist, get_default_address, view_wishlist, remove_from_wishlist, clear_wishlist)
+                    add_to_wishlist, get_default_address, view_wishlist, remove_from_wishlist, clear_wishlist,
+                    check_username, update_customer_profile, CustomTokenObtainPairView, CustomTokenRefreshView)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
-    path('customer/login', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('customer/login/token-refresh', TokenRefreshView.as_view(), name='token_refresh'),
-    path('customer/sign-up', create_customer, name='create_customer'),
-    path('customer/sign-up/verify-otp', verify_otp, name='verify_otp'),
-    path('customer/details', customer_profile, name='customer_profile'),
+    path('customer/login', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('customer/login/token-refresh', CustomTokenRefreshView.as_view(), name='token_refresh'),
+    path('customer/signup', create_customer, name='create_customer'),
+    path('customer/signup/verifyOtp', verify_otp, name='verify_otp'),
+    path('customer/profile', customer_profile, name='customer_profile'),
+    path('customer/profile/update', update_customer_profile, name='update_customer_profile'),
+    path('customer/username/verify/<str:username>', check_username, name='check_username'),
 
     path('product/categories', product_category_list, name='product-categories'),
     path('product/widgets', widget_list, name='widgets'),
@@ -38,3 +41,10 @@ urlpatterns = [
     path('wishlist/remove-from-wishlist/<int:wishlist_item_id>/', remove_from_wishlist, name='remove_from_wishlist'),
     path('wishlist/remove-all', clear_wishlist, name='clear_wishlist'),
 ]
+
+
+# from .views import CustomTokenObtainPairView, CustomTokenRefreshView
+#
+# urlpatterns = [
+#     path('customer/login', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+#     path('customer/login/token-refresh', CustomTokenRefreshView.as_view(), name='token_refresh'),

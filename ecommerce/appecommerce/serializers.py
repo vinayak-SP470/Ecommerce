@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from .models import (Role, CustomUser, ProductCategory, Widget, Brand, ProductBasic, Inventory,
                      CartItem, Address, WishlistItem)
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class CustomUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
     class Meta:
         model = CustomUser
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'country_code', 'profile_image',
@@ -75,3 +77,65 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = WishlistItem
         fields = '__all__'
+
+class CustomTokenObtainSerializer(serializers.Serializer):
+    username_field = CustomUser.USERNAME_FIELD
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields[self.username_field] = serializers.CharField()
+        self.fields['password'] = serializers.CharField(max_length=128, write_only=True)
+
+    def validate(self, attrs):
+        authenticate_kwargs = {
+            self.username_field: attrs[self.username_field],
+            'password': attrs['password'],
+        }
+
+        if not all(authenticate_kwargs.values()):
+            raise serializers.ValidationError(
+                f'Must include "{self.username_field}" and "password".',
+                code='authorization_required'
+            )
+
+        user = CustomUser.objects.filter(**{self.username_field: attrs[self.username_field]}).first()
+
+        # Check if the user exists and the password is correct
+        if user and user.check_password(attrs['password']):
+            # Check if the user is active
+            if user.is_active:
+                # Generate tokens
+                refresh = RefreshToken.for_user(user)
+                return {
+                    'user': {
+                        'id': user.id,
+                        'email': user.email,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'country_code': user.country_code,
+                        'phone': user.phone_number,
+                    },
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            else:
+                # User is not active, return a message
+                return {'message': 'This user is not active'}
+        else:
+            raise serializers.ValidationError(
+                'Invalid username or password',
+                code='authorization_failed'
+            )
+
+
+class CustomTokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+    def validate(self, attrs):
+        try:
+            refresh_token = attrs['refresh']
+            refresh = RefreshToken(refresh_token)
+            return {
+                'access': str(refresh.access_token)
+            }
+        except Exception as e:
+            raise serializers.ValidationError('Invalid refresh token', code='invalid_refresh_token')
