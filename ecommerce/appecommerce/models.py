@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
+import stripe
 # Model class for different roles
 class Role(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -17,6 +17,17 @@ class CustomUser(AbstractUser):
     user_permissions = models.ManyToManyField("auth.Permission", related_name="custom_users", blank=True)
     otp = models.CharField(max_length=6, blank=True)
     token = models.CharField(max_length=100, blank=True)
+    stripe_id = models.CharField(max_length=255, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.stripe_id and self.email:  # Ensure email is not empty
+            try:
+                stripe_customer = stripe.Customer.create(email=self.email)
+                self.stripe_id = stripe_customer.id
+            except stripe.error.StripeError as e:
+                pass  # You can add your error handling logic here
+
+        super().save(*args, **kwargs)
 
 # Model class for different category in products like fashion, electronics
 class ProductCategory(models.Model):
@@ -169,3 +180,15 @@ class WishlistItem(models.Model):
 
     def __str__(self):
         return f"{self.inventory.product.product_title} - {self.added_at}"
+
+class PaymentCard(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    card_number = models.CharField(max_length=16)
+    exp_month = models.IntegerField()
+    exp_year = models.IntegerField()
+    cvc = models.CharField(max_length=3)
+    brand = models.CharField(max_length=50, blank=True)
+    stripe_card_id = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.user}-brand{self.brand} ending in {self.card_number[-4:]}"

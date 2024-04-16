@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (Role, CustomUser, ProductCategory, Widget, Brand, ProductBasic, Inventory,
-                     CartItem, Address, WishlistItem)
+                     CartItem, Address, WishlistItem, PaymentCard)
 from rest_framework_simplejwt.tokens import RefreshToken
 
 class CustomUserSerializer(serializers.ModelSerializer):
@@ -42,10 +42,14 @@ class BrandSerializer(serializers.ModelSerializer):
 
 class ProductBasicSerializer(serializers.ModelSerializer):
     exchange_policy = serializers.StringRelatedField()
+    brand = serializers.CharField(source='brand.name', allow_null=True)
+    category = serializers.CharField(source='category.name', allow_null=True)
+    widget = serializers.CharField(source='widget.name', allow_null=True)
 
     class Meta:
         model = ProductBasic
         fields = '__all__'
+
 
 class InventorySerializer(serializers.ModelSerializer):
     product_title = serializers.CharField(source='product.product_title')
@@ -91,23 +95,17 @@ class CustomTokenObtainSerializer(serializers.Serializer):
             self.username_field: attrs[self.username_field],
             'password': attrs['password'],
         }
-
         if not all(authenticate_kwargs.values()):
             raise serializers.ValidationError(
                 f'Must include "{self.username_field}" and "password".',
                 code='authorization_required'
             )
-
         user = CustomUser.objects.filter(**{self.username_field: attrs[self.username_field]}).first()
-
-        # Check if the user exists and the password is correct
         if user and user.check_password(attrs['password']):
-            # Check if the user is active
             if user.is_active:
-                # Generate tokens
                 refresh = RefreshToken.for_user(user)
                 return {
-                    'user': {
+                    'profileData': {
                         'id': user.id,
                         'email': user.email,
                         'first_name': user.first_name,
@@ -119,7 +117,6 @@ class CustomTokenObtainSerializer(serializers.Serializer):
                     'access': str(refresh.access_token),
                 }
             else:
-                # User is not active, return a message
                 return {'message': 'This user is not active'}
         else:
             raise serializers.ValidationError(
@@ -139,3 +136,9 @@ class CustomTokenRefreshSerializer(serializers.Serializer):
             }
         except Exception as e:
             raise serializers.ValidationError('Invalid refresh token', code='invalid_refresh_token')
+
+class PaymentCardSerializer(serializers.ModelSerializer):
+    stripe_card_id = serializers.CharField(read_only=True)
+    class Meta:
+        model = PaymentCard
+        fields = ['card_number', 'exp_month', 'exp_year', 'cvc', 'brand', 'stripe_card_id']

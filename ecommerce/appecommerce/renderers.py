@@ -1,5 +1,6 @@
 
-from rest_framework import renderers
+from rest_framework import renderers, status
+
 
 class BrandJSONRenderer(renderers.JSONRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
@@ -42,6 +43,27 @@ class CustomerProfileRenderer(renderers.JSONRenderer):
             'success': success,
             'message': message,
             'statusCode': status_code
+
+        }
+        return super().render(response_data, accepted_media_type, renderer_context)
+
+
+class CustomTokenObtainPairRenderer(renderers.JSONRenderer):
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+
+        if 'access' not in data:
+            error_message = "Invalid username or password"
+            status_code = status.HTTP_401_UNAUTHORIZED
+        else:
+            error_message = None
+            status_code = status.HTTP_200_OK
+        response_data = {
+            'data': data.get('profileData', {}),
+            'refreshToken': data.get('refresh'),
+            'accessToken': data.get('access'),
+            'success': error_message is None,
+            'message': error_message or f'Welcome Back !',
+            'statusCode': status_code,
 
         }
         return super().render(response_data, accepted_media_type, renderer_context)

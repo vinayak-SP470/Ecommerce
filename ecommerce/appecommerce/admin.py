@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (Role, CustomUser, Brand, Widget, ProductCategory, Variant,
-                     VariantValue, ExchangePolicy, ProductBasic, Inventory, CartItem, Cart, Address)
+                     VariantValue, ExchangePolicy, ProductBasic, Inventory, CartItem, Cart, Address, PaymentCard)
 
 admin.site.register(Role)
 admin.site.register(CustomUser)
@@ -15,5 +15,7 @@ admin.site.register(Inventory)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 admin.site.register(Address)
+admin.site.register(PaymentCard)
+
 
 

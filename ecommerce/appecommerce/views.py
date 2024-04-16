@@ -13,10 +13,10 @@ from .models import (ProductCategory, Widget, Brand, Variant, VariantValue, Prod
 from .serializers import (CustomUserSerializer, UserDetailsSerializer, ProductCategorySerializer,
                           WidgetSerializer, BrandSerializer, ProductBasicSerializer, InventorySerializer,
                           CartItemSerializer, AddressSerializer, WishlistItemSerializer, CustomTokenObtainSerializer,
-                          CustomTokenRefreshSerializer)
-from .renderers import BrandJSONRenderer, CustomerProfileRenderer
+                          CustomTokenRefreshSerializer, PaymentCardSerializer)
+from .renderers import BrandJSONRenderer, CustomerProfileRenderer, CustomTokenObtainPairRenderer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView as BaseTokenRefreshView
-
+import stripe
 # Function to generate random number for otp (Twilio)
 def generate_otp(length=6):
     return ''.join(random.choices('0123456789', k=length))
@@ -213,6 +213,19 @@ def variant_list(request):
         data.append(variant_data)
 
     return Response(data)
+
+# Function to fetch all product details
+@swagger_auto_schema(method='get', operation_summary='Get all products')
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def all_products(request):
+    if request.method == 'GET':
+        try:
+            products = ProductBasic.objects.all()
+            serializer = ProductBasicSerializer(products, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Function to fetch basic product details by passing product ID
 @swagger_auto_schema(method='get', operation_summary='Get product detail')
@@ -587,6 +600,8 @@ def clear_wishlist(request):
 # Login customer and fetching Token
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainSerializer
+    renderer_classes = [CustomTokenObtainPairRenderer]
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -614,6 +629,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 class CustomTokenRefreshView(BaseTokenRefreshView):
     serializer_class = CustomTokenRefreshSerializer
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -625,6 +641,80 @@ class CustomTokenRefreshView(BaseTokenRefreshView):
         return super().post(request, *args, **kwargs)
 
 
+# Card
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'card_number': openapi.Schema(type=openapi.TYPE_STRING, description='Full card number'),
+            'exp_month': openapi.Schema(type=openapi.TYPE_INTEGER, description='Expiry month of the card'),
+            'exp_year': openapi.Schema(type=openapi.TYPE_INTEGER, description='Expiry year of the card'),
+            'cvc': openapi.Schema(type=openapi.TYPE_STRING, description='Card verification code'),
+        },
+        required=['card_number', 'exp_month', 'exp_year', 'cvc']
+    ),
+    responses={
+        201: openapi.Response(
+            description='Card added successfully',
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'cardId': openapi.Schema(type=openapi.TYPE_STRING, description='Stripe card ID'),
+                    'last4': openapi.Schema(type=openapi.TYPE_STRING, description='Last 4 digits of card number'),
+                    'month': openapi.Schema(type=openapi.TYPE_INTEGER, description='Expiry month of the card'),
+                    'year': openapi.Schema(type=openapi.TYPE_INTEGER, description='Expiry year of the card'),
+                }
+            )
+        ),
+        400: openapi.Response(description='Bad Request'),
+    },
+    operation_summary='Add a new card',
+    operation_description='Add a new payment card for the currently logged-in user.',
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_card(request):
+    serializer = PaymentCardSerializer(data=request.data)
+    if serializer.is_valid():
+        card_data = serializer.validated_data
+        card_number = card_data.get('card_number')
+        exp_month = card_data.get('exp_month')
+        exp_year = card_data.get('exp_year')
+        cvc = card_data.get('cvc')
+
+
+        customer_id = request.user.stripe_id
+
+        try:
+            stripe_card = stripe.Customer.create_source(
+                customer=str(customer_id).encode(),
+                source={
+                    'object': 'card',
+                    'number': card_number,
+                    'exp_month': exp_month,
+                    'exp_year': exp_year,
+                    'cvc': cvc,
+                }
+            )
+        except stripe.error.StripeError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        stripe_card_id = stripe_card.id
+        last4 = stripe_card.last4
+        serializer.save(user=request.user, stripe_card_id=stripe_card_id)
+
+        response_data = {
+            "cardId": stripe_card_id,
+            "last4": last4,
+            "month": exp_month,
+            "year": exp_year[-2:],
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 # # Function to log in (access token)
 # @swagger_auto_schema(method='post', security=[], request_body=openapi.Schema(type=openapi.TYPE_OBJECT), responses={200: 'Success'})
 # @api_view(['POST'])

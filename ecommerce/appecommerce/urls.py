@@ -4,7 +4,8 @@ from .views import (create_customer, customer_profile, product_category_list,
                     add_to_cart, remove_from_cart, update_cart_item_quantity, delete_customer_cart_items,
                     address_list, add_address, get_address_by_id, edit_address, delete_address, verify_otp,
                     add_to_wishlist, get_default_address, view_wishlist, remove_from_wishlist, clear_wishlist,
-                    check_username, update_customer_profile, CustomTokenObtainPairView, CustomTokenRefreshView)
+                    check_username, update_customer_profile, CustomTokenObtainPairView, CustomTokenRefreshView, add_card,
+                    all_products)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
@@ -20,6 +21,7 @@ urlpatterns = [
     path('product/widgets', widget_list, name='widgets'),
     path('product/brands', brand_list, name='brands'),
     path('product/variant-values', variant_list, name='variants'),
+    path('product/product-detail', all_products, name='product-detail'),
     path('product/product-detail/<int:product_id>', product_detail, name='product-detail'),
     path('product/inventory-detail/<int:inventory_id>', inventory_detail, name='inventory-detail'),
 
@@ -40,6 +42,9 @@ urlpatterns = [
     path('wishlist/add-to-wishlist/<int:inventory_id>', add_to_wishlist, name='toggle_wishlist'),
     path('wishlist/remove-from-wishlist/<int:wishlist_item_id>/', remove_from_wishlist, name='remove_from_wishlist'),
     path('wishlist/remove-all', clear_wishlist, name='clear_wishlist'),
+
+    path('add-card/', add_card, name='add_card'),
+
 ]
 
 
