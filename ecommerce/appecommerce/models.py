@@ -20,40 +20,35 @@ class CustomUser(AbstractUser):
     stripe_id = models.CharField(max_length=255, blank=True)
 
     def save(self, *args, **kwargs):
-        if not self.stripe_id and self.email:  # Ensure email is not empty
+        if not self.stripe_id and self.email:
             try:
                 stripe_customer = stripe.Customer.create(email=self.email)
                 self.stripe_id = stripe_customer.id
             except stripe.error.StripeError as e:
-                pass  # You can add your error handling logic here
-
+                pass
         super().save(*args, **kwargs)
 
 # Model class for different category in products like fashion, electronics
 class ProductCategory(models.Model):
     name = models.CharField(max_length=100)
-
     def __str__(self):
         return self.name
 
 # Model class for different widget in products like Best selling, trending
 class Widget(models.Model):
     name = models.CharField(max_length=100)
-
     def __str__(self):
         return self.name
 
 # Model class for different brands in products like Dell, JBL, One plus
 class Brand(models.Model):
     name = models.CharField(max_length=100)
-
     def __str__(self):
         return self.name
 
 # Model class for different variants in products like color, size, RAM
 class Variant(models.Model):
     name = models.CharField(max_length=100)
-
     def __str__(self):
         return self.name
 
@@ -61,15 +56,12 @@ class Variant(models.Model):
 class VariantValue(models.Model):
     name = models.CharField(max_length=100)
     variant = models.ForeignKey(Variant, on_delete=models.CASCADE, related_name='values')
-    # sort_order = models.IntegerField(null=True, blank=True)
-
     def __str__(self):
         return self.name
 
 # Model class for different exchange policy
 class ExchangePolicy(models.Model):
     name = models.CharField(max_length=100)
-
     def __str__(self):
         return self.name
 
@@ -81,12 +73,12 @@ class ProductBasic(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='products', blank=True, null=True)
     category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE, blank=True, null=True)
     widget = models.ForeignKey(Widget, on_delete=models.CASCADE, blank=True, null=True)
-
     def __str__(self):
         if self.brand:
             return f"{self.product_title} ({self.brand.name})"
         else:
             return self.product_title
+
 # Model class for inventory details
 class Inventory(models.Model):
     product = models.ForeignKey(ProductBasic, on_delete=models.CASCADE)
@@ -104,7 +96,6 @@ class Inventory(models.Model):
         else:
             self.stock_status = "Out of stock"
         super().save(*args, **kwargs)
-
     def __str__(self):
         return self.product.product_title
     @classmethod
@@ -115,17 +106,14 @@ class Inventory(models.Model):
             field = models.ForeignKey(VariantValue, on_delete=models.CASCADE, related_name=f'{field_name}s', null=True,
                                       blank=True)
             cls.add_to_class(field_name, field)
-
     def __str__(self):
         return self.product.product_title
-
 Inventory.add_variant_fields()
 
 # Model class for cart for all customers
 class Cart(models.Model):
     customer = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
         return f"Cart of {self.customer.username}"
 
@@ -134,7 +122,6 @@ class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
-
     def __str__(self):
         return f"{self.inventory.product.product_title} - Quantity: {self.quantity}"
 
@@ -161,7 +148,6 @@ class Address(models.Model):
     country = models.CharField(max_length=100)
     address_type = models.CharField(max_length=10, choices=ADDRESS_TYPE_CHOICES)
     is_default = models.BooleanField(default=False)
-
     def save(self, *args, **kwargs):
         if self.is_default:
             Address.objects.filter(customer=self.customer).exclude(id=self.id).update(is_default=False)
@@ -169,7 +155,6 @@ class Address(models.Model):
 
 class Wishlist(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-
     def __str__(self):
         return f"Wishlist of {self.user.username}"
 
@@ -177,7 +162,6 @@ class WishlistItem(models.Model):
     wishlist = models.ForeignKey(Wishlist, on_delete=models.CASCADE, related_name='items')
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     added_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
         return f"{self.inventory.product.product_title} - {self.added_at}"
 
@@ -189,6 +173,5 @@ class PaymentCard(models.Model):
     cvc = models.CharField(max_length=3)
     brand = models.CharField(max_length=50, blank=True)
     stripe_card_id = models.CharField(max_length=100)
-
     def __str__(self):
         return f"{self.user}-brand{self.brand} ending in {self.card_number[-4:]}"

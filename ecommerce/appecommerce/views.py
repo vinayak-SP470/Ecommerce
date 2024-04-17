@@ -534,7 +534,6 @@ def get_default_address(request):
         return Response({'message': 'Default address not found.'}, status=404)
 
 # Wishlish
-
 @swagger_auto_schema(method='get', operation_summary='List customer wishlist')
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -551,7 +550,6 @@ def add_to_wishlist(request, inventory_id):
     if request.method == 'POST':
         if not inventory_id:
             return Response({'message': 'Inventory ID is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
             inventory = Inventory.objects.get(id=inventory_id)
         except Inventory.DoesNotExist:
@@ -565,7 +563,6 @@ def add_to_wishlist(request, inventory_id):
         wishlist_item_serializer = WishlistItemSerializer(wishlist_item)
         inventory.is_wishlisted = True
         inventory.save()
-
         return Response({'message': 'Item added to wishlist successfully.'}, status=status.HTTP_201_CREATED)
 
 @swagger_auto_schema(method='delete', operation_summary='Delete wishlist by ID')
@@ -573,7 +570,6 @@ def add_to_wishlist(request, inventory_id):
 @permission_classes([IsAuthenticated])
 def remove_from_wishlist(request, wishlist_item_id):
     user = request.user
-
     try:
         wishlist_item = WishlistItem.objects.get(id=wishlist_item_id, wishlist__user=user)
     except WishlistItem.DoesNotExist:
@@ -643,8 +639,6 @@ class CustomTokenRefreshView(BaseTokenRefreshView):
 
 # Card
 stripe.api_key = settings.STRIPE_SECRET_KEY
-
-
 @swagger_auto_schema(
     method='post',
     request_body=openapi.Schema(
@@ -685,8 +679,6 @@ def add_card(request):
         exp_month = card_data.get('exp_month')
         exp_year = card_data.get('exp_year')
         cvc = card_data.get('cvc')
-
-
         customer_id = request.user.stripe_id
 
         try:
@@ -715,19 +707,5 @@ def add_card(request):
         }
         return Response(response_data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-# # Function to log in (access token)
-# @swagger_auto_schema(method='post', security=[], request_body=openapi.Schema(type=openapi.TYPE_OBJECT), responses={200: 'Success'})
-# @api_view(['POST'])
-# @authentication_classes([])
-# @permission_classes([])
-# def custom_token_obtain_pair(request):
-#     return TokenObtainPairView.as_view()(request)
-#
-# # Function for refresh token
-# @swagger_auto_schema(method='post', security=[], request_body=openapi.Schema(type=openapi.TYPE_OBJECT), responses={200: 'Success'})
-# @api_view(['POST'])
-# @authentication_classes([])
-# @permission_classes([])
-# def custom_token_refresh(request):
-#     return TokenRefreshView.as_view()(request)
+
 

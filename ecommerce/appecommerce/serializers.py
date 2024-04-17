@@ -124,7 +124,6 @@ class CustomTokenObtainSerializer(serializers.Serializer):
                 code='authorization_failed'
             )
 
-
 class CustomTokenRefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField()
     def validate(self, attrs):

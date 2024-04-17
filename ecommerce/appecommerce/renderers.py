@@ -1,7 +1,4 @@
-
 from rest_framework import renderers, status
-
-
 class BrandJSONRenderer(renderers.JSONRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
         if not data:
@@ -10,7 +7,6 @@ class BrandJSONRenderer(renderers.JSONRenderer):
                 'success': False,
                 'message': 'No brands added',
                 'statusCode': 200
-
             }
         else:
             response_data = {
@@ -47,7 +43,6 @@ class CustomerProfileRenderer(renderers.JSONRenderer):
         }
         return super().render(response_data, accepted_media_type, renderer_context)
 
-
 class CustomTokenObtainPairRenderer(renderers.JSONRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
 
@@ -64,6 +59,5 @@ class CustomTokenObtainPairRenderer(renderers.JSONRenderer):
             'success': error_message is None,
             'message': error_message or f'Welcome Back !',
             'statusCode': status_code,
-
         }
         return super().render(response_data, accepted_media_type, renderer_context)
